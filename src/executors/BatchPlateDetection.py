@@ -6,7 +6,6 @@ import uuid
 
 import numpy as np
 
-sys.path.append("/opt/project/capsules/Yolov5/src/lib/yolov5")
 sys.path.append(
     os.path.join(
         os.path.dirname(__file__),
@@ -19,7 +18,6 @@ from sdks.novavision.src.base.capsule import Capsule
 from sdks.novavision.src.base.model import BoundingBox
 from sdks.novavision.src.helper.executor import Executor
 
-from capsules.Yolov5.src.classes.yolov5_detect import Yolov5Detect
 
 if __package__:
     from ..models.PackageModel import PackageModel, Detection
@@ -56,10 +54,17 @@ class BatchPlateDetection(Capsule):
             "IOUThreshold"
         )
 
-        self.backend = self.request.get_param("Weights")
+        self.backend = self.request.get_param(
+            "Weights"
+        )
 
-        self.select_device = self.bootstrap.get("device")
-        self.weight = self.bootstrap.get("model")
+        self.select_device = self.bootstrap.get(
+            "device"
+        )
+
+        self.weight = self.bootstrap.get(
+            "model"
+        )
 
         self.detection_groups = []
 
@@ -103,52 +108,54 @@ class BatchPlateDetection(Capsule):
             return detection_list
 
         for plate in output:
+            class_id = int(plate[5])
+
             plate_bbox = BoundingBox(
-                left=plate[0],
-                top=plate[1],
-                width=plate[2] - plate[0],
-                height=plate[3] - plate[1],
+                left=float(plate[0]),
+                top=float(plate[1]),
+                width=float(plate[2] - plate[0]),
+                height=float(plate[3] - plate[1]),
             )
 
             detection = Detection(
                 boundingBox=plate_bbox,
-                confidence=plate[4],
-                classLabel=names[int(plate[5])],
-                classId=-int(plate[5]),
+                confidence=float(plate[4]),
+                classLabel=names[class_id],
+                classId=-class_id,
                 imgUID=img_uid,
                 UUID=str(uuid.uuid4()),
                 source=img_uid,
             )
 
-            detection_list.append(detection)
+            detection_list.append(
+                detection
+            )
 
         return detection_list
 
     def plate_inference(self, image):
-        if self.backend == "yolo_v5_plate.pt":
-            output, names, _ = Yolov5Detect(
-                model=self.weight,
-                source=image.value,
-                device=str(self.select_device),
-                conf_thres=float(self.conf_thres),
-                iou_thres=float(self.iou_thres),
-            ).run()
-
-            output = output[0].cpu().numpy()
-
-        elif self.backend in (
+        if self.backend not in (
             "yolo_v8_plate.pt",
             "yolo_v11_plate.pt",
         ):
-            results = self.weight.predict(
-                image.value,
-                device=str(self.select_device),
-                conf=float(self.conf_thres),
-                iou=float(self.iou_thres),
+            raise ValueError(
+                "Unsupported backend: "
+                f"{self.backend}. "
+                "Use yolo_v8_plate.pt or "
+                "yolo_v11_plate.pt."
             )
 
-            output = []
+        results = self.weight.predict(
+            image.value,
+            device=str(self.select_device),
+            conf=float(self.conf_thres),
+            iou=float(self.iou_thres),
+            verbose=False,
+        )
 
+        output = []
+
+        if results:
             for box in results[0].boxes:
                 xyxy = (
                     box.xyxy[0]
@@ -157,20 +164,23 @@ class BatchPlateDetection(Capsule):
                     .tolist()
                 )
 
-                conf = float(box.conf)
-                cls_id = int(box.cls)
-
-                output.append(
-                    xyxy + [conf, cls_id]
+                conf = float(
+                    box.conf[0].cpu().item()
                 )
 
-            names = self.weight.names
+                cls_id = int(
+                    box.cls[0].cpu().item()
+                )
 
-        else:
-            raise ValueError(
-                "Unsupported backend: "
-                f"{self.backend}"
-            )
+                output.append(
+                    xyxy
+                    + [
+                        conf,
+                        cls_id,
+                    ]
+                )
+
+        names = self.weight.names
 
         return self.process_output(
             output=output,
@@ -179,10 +189,15 @@ class BatchPlateDetection(Capsule):
         )
 
     def run(self):
-        if isinstance(self.images, list):
+        if isinstance(
+            self.images,
+            list,
+        ):
             image_items = self.images
         else:
-            image_items = [self.images]
+            image_items = [
+                self.images
+            ]
 
         self.detection_groups = []
 
@@ -193,7 +208,9 @@ class BatchPlateDetection(Capsule):
             )
 
             if image is None:
-                self.detection_groups.append([])
+                self.detection_groups.append(
+                    []
+                )
                 continue
 
             detections = self.plate_inference(
@@ -210,4 +227,6 @@ class BatchPlateDetection(Capsule):
 
 
 if "__main__" == __name__:
-    Executor(sys.argv[1]).run()
+    Executor(
+        sys.argv[1]
+    ).run()

@@ -58,15 +58,6 @@ class BatchPlateDetectionOutputs(Outputs):
     outputDetections: OutputDetections
 
 
-class PlateYoloV5Weight(Config):
-    name: Literal["PlateYoloV5Weight"] = "PlateYoloV5Weight"
-    value: Literal["yolo_v5_plate.pt"] = "yolo_v5_plate.pt"
-    type: Literal["string"] = "string"
-    field: Literal["option"] = "option"
-
-    class Config:
-        title = "Plate YOLOv5"
-
 
 class PlateYoloV8Weight(Config):
     name: Literal["PlateYoloV8Weight"] = "PlateYoloV8Weight"
@@ -92,7 +83,6 @@ class ConfigWeights(Config):
     name: Literal["Weights"] = "Weights"
 
     value: Union[
-        PlateYoloV5Weight,
         PlateYoloV8Weight,
         PlateYoloV11Weight,
     ]
